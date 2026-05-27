@@ -1,6 +1,8 @@
 <img src="https://github.com/cullenwatson/JobSpy/assets/78247585/ae185b7e-e444-4712-8bb9-fa97f53e896b" width="400">
 
-**JobSpy** is a job scraping library with the goal of aggregating all the jobs from popular job boards with one tool.
+## JobSpy-main (Ramu Akula Fork)
+
+**JobSpy-main** is a customized job scraping toolkit for aggregating jobs from multiple popular job boards with one workflow.
 
 This repository is an actively customized fork maintained by **Ramu Akula** for specialized USA IT-job aggregation workflows.
 
@@ -23,6 +25,12 @@ This repository is an actively customized fork maintained by **Ramu Akula** for 
 - Base project: **JobSpy** (open-source)
 - License: **MIT**
 - Compliance approach: Original license and copyright notice are retained, and fork-specific enhancements are documented in this repository.
+
+## Project Scope
+
+- Primary focus: USA-based IT/technology job discovery
+- Pipeline includes stronger filtering, portal trust dedupe, and structured JD extraction
+- Intended for practical downstream analysis/export workflows
 
 ![jobspy](https://github.com/cullenwatson/JobSpy/assets/78247585/ec7ef355-05f6-4fd3-8161-a817e31c5c57)
 
