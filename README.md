@@ -2,11 +2,27 @@
 
 **JobSpy** is a job scraping library with the goal of aggregating all the jobs from popular job boards with one tool.
 
+This repository is an actively customized fork maintained by **Ramu Akula** for specialized USA IT-job aggregation workflows.
+
+> Legal note: This project remains under the MIT License and preserves attribution to the original JobSpy project and contributors.
+
 ## Features
 
 - Scrapes job postings from **LinkedIn**, **Indeed**, **Glassdoor**, **Google**, **ZipRecruiter**, & other job boards concurrently
 - Aggregates the job postings in a dataframe
 - Proxies support to bypass blocking
+- Includes an end-to-end CLI pipeline for **USA-only** and **IT-focused** filtering
+- Supports additional sources: **Dice**, **USAJobs**, **BuiltIn**, **Monster**, **SimplyHired**, **CareerBuilder**, **Hired**, **Wellfound**, **HiringCafe**, **CyberCoders**, **ComputerJobs**, **TechFetch**
+- Enforces meaningful/full job descriptions (configurable in code) to reduce low-quality rows
+- Cross-portal deduplication with trusted-portal preference (keeps one best source when same role appears on multiple portals)
+- Enriched export fields extracted from full JD text (work mode, sponsorship/visa signals, compensation snippets, location snippets)
+
+## Fork Ownership and Attribution
+
+- Maintained by: **Ramu Akula**
+- Base project: **JobSpy** (open-source)
+- License: **MIT**
+- Compliance approach: Original license and copyright notice are retained, and fork-specific enhancements are documented in this repository.
 
 ![jobspy](https://github.com/cullenwatson/JobSpy/assets/78247585/ec7ef355-05f6-4fd3-8161-a817e31c5c57)
 
@@ -41,6 +57,35 @@ print(jobs.head())
 jobs.to_csv("jobs.csv", quoting=csv.QUOTE_NONNUMERIC, escapechar="\\", index=False) # to_excel
 ```
 
+### End-to-End CLI Pipeline (Latest)
+
+Use the pipeline runner for production-style output shaping and filtering:
+
+```bash
+python -m jobspy.cli \
+    --search-term "Sr Java Developer" \
+    --location "Florida" \
+    --sites indeed,linkedin,zip_recruiter,google,dice,usajobs,builtin,monster,simplyhired,careerbuilder,hired,wellfound,hiringcafe,cybercoders,computerjobs,techfetch \
+    --results 50 \
+    --hours-old 168 \
+    --output-dir outputs \
+    --output-basename sr_java_developer
+```
+
+Current default pipeline behavior:
+
+- Strict USA location filtering
+- IT-role filtering
+- LinkedIn full-description fetch enabled
+- Full-description quality filter enabled
+- Trusted-portal dedupe enabled
+
+Supported site aliases include:
+
+- `zip_recruiter`
+- `zip_recruitor` (supported typo alias)
+- domain-style tokens like `indeed.com`, `linkedin.com`, `dice.com/jobs`
+
 ### Output
 
 ```
@@ -53,6 +98,29 @@ zip_recruiter Software Engineer - New Grad       ZipRecruiter      Santa Monica 
 zip_recruiter Software Developer                 TEKsystems        Phoenix       AZ     fulltime  hourly    65          75          https://www.ziprecruiter.com/jobs/teksystems-0...  Top Skills' Details• 6 years of Java developme...
 
 ```
+
+### User-Facing Export Columns (Pipeline CSV/JSONL)
+
+The pipeline export includes business-friendly columns:
+
+- `Title`
+- `Job Location`
+- `Job Type`
+- `Salary or Hourly Price`
+- `Immigration Status`
+- `Work Mode (Extracted)`
+- `Visa / Sponsorship (Extracted)`
+- `Compensation Details (Extracted)`
+- `Location Details (Extracted)`
+- `Portal`
+- `Job Description Version 1` (full/raw combined description)
+- `Job Description Version 2` (structured: role summary, responsibilities, skills)
+- `Job Description` (currently mirrors Version 2 for compatibility)
+
+Notes:
+
+- If a source does not expose enough public detail, that row can be filtered out by the full-description quality gate.
+- Duplicate roles across portals are collapsed to one preferred portal based on trust ranking.
 
 ### Parameters for `scrape_jobs()`
 
