@@ -1,0 +1,3 @@
+job_id,Title,Portal,Job Location,Job Type,Salary or Hourly Price,Immigration Status,Job Description Version 1,job_url
+job-1001,Senior Java Developer,linkedin,Jacksonville FL,Contract,$65/hr,Sponsorship/Work Visa Mentioned,"Looking for Senior Java Developer with Spring Boot, Microservices, AWS, REST API and SQL. Must have strong communication and production support experience.",https://example.com/job-1001
+job-1002,Python Data Engineer,indeed,Tampa FL,Full-time,$140000/yr,Not specified,"Need Python, Spark, ETL, Data Lake and AWS experience.",https://example.com/job-1002

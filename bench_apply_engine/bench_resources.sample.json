@@ -1,0 +1,21 @@
+[
+  {
+    "resource_id": "bench-001",
+    "full_name": "Candidate One",
+    "target_roles": ["Senior Java Developer", "Java Software Engineer"],
+    "position_types": ["Contract", "Full-time"],
+    "preferred_locations": ["Florida", "Remote"],
+    "work_authorization": "H1B Transfer",
+    "expected_rate": "$65/hr",
+    "verified_skills": [
+      "Java",
+      "Spring Boot",
+      "Microservices",
+      "AWS",
+      "SQL",
+      "REST API",
+      "Kafka"
+    ],
+    "base_resume_text": "Senior Java Developer with 8+ years of experience building Java and Spring Boot microservices, REST APIs, SQL-backed services, and AWS-hosted workloads. Strong in system design, production support, and performance tuning."
+  }
+]

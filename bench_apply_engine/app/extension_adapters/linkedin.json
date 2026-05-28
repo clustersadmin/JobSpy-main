@@ -1,0 +1,58 @@
+{
+  "portal": "linkedin",
+  "version": "1.0",
+  "requires_human_confirmation": true,
+  "steps": [
+    {
+      "name": "open_job",
+      "description": "Open job page and wait for easy-apply module visibility"
+    },
+    {
+      "name": "prefill_candidate_profile",
+      "fields": [
+        "full_name",
+        "email",
+        "phone",
+        "work_authorization"
+      ]
+    },
+    {
+      "name": "upload_resume",
+      "fields": [
+        "optimized_resume_file"
+      ]
+    },
+    {
+      "name": "fill_cover_letter",
+      "fields": [
+        "cover_letter_text"
+      ]
+    },
+    {
+      "name": "answer_screening_questions",
+      "fields": [
+        "visa_status",
+        "rate_expectation",
+        "location_preference"
+      ]
+    },
+    {
+      "name": "final_user_review"
+    },
+    {
+      "name": "submit",
+      "mode": "user_confirmed_only"
+    }
+  ],
+  "selectors": {
+    "easy_apply_button": "button.jobs-apply-button",
+    "next_button": "button[aria-label='Continue to next step']",
+    "review_button": "button[aria-label='Review your application']",
+    "submit_button": "button[aria-label='Submit application']"
+  },
+  "guardrails": {
+    "bulk_apply_disabled": true,
+    "stop_on_captcha": true,
+    "daily_limit_required": true
+  }
+}

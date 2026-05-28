@@ -1,0 +1,57 @@
+{
+  "portal": "indeed",
+  "version": "1.0",
+  "requires_human_confirmation": true,
+  "steps": [
+    {
+      "name": "open_job",
+      "description": "Open Indeed job page and wait for apply flow to initialize"
+    },
+    {
+      "name": "prefill_candidate_profile",
+      "fields": [
+        "full_name",
+        "email",
+        "phone",
+        "location"
+      ]
+    },
+    {
+      "name": "upload_resume",
+      "fields": [
+        "optimized_resume_file"
+      ]
+    },
+    {
+      "name": "fill_cover_letter",
+      "fields": [
+        "cover_letter_text"
+      ]
+    },
+    {
+      "name": "answer_screening_questions",
+      "fields": [
+        "work_authorization",
+        "salary_or_rate",
+        "availability"
+      ]
+    },
+    {
+      "name": "final_user_review"
+    },
+    {
+      "name": "submit",
+      "mode": "user_confirmed_only"
+    }
+  ],
+  "selectors": {
+    "apply_button": "button[data-testid='indeedApplyButton']",
+    "next_button": "button[type='submit']",
+    "submit_button": "button[type='submit']"
+  },
+  "guardrails": {
+    "bulk_apply_disabled": true,
+    "stop_on_captcha": true,
+    "daily_limit_required": true
+  }
+}
