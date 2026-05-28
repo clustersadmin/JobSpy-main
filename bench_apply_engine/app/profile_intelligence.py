@@ -346,3 +346,68 @@ def generate_profile_guidance(payload: dict[str, Any], use_llama: bool = False) 
             out.update(llama)
 
     return out
+
+
+def enforce_guidance_uniqueness(
+    guidance: dict[str, Any],
+    payload: dict[str, Any],
+    prior_guidance_count: int,
+) -> dict[str, Any]:
+    """Apply deterministic variation so candidate guidance does not become repetitive."""
+    result = dict(guidance)
+    candidate = payload.get("candidate") or {}
+
+    roles = [str(x).strip() for x in (candidate.get("target_roles") or []) if str(x).strip()]
+    skills = [str(x).strip() for x in (candidate.get("verified_skills") or []) if str(x).strip()]
+    primary_role = roles[0] if roles else "Software Engineer"
+    stack = ", ".join(skills[:4]) if skills else "engineering"
+
+    openings = [
+        "Outcome-driven",
+        "Client-focused",
+        "Delivery-oriented",
+        "Impact-minded",
+        "Productive and pragmatic",
+    ]
+    about_tones = [
+        "Known for clear communication and ownership across delivery cycles.",
+        "Recognized for stakeholder alignment and reliable delivery.",
+        "Brings strong execution discipline with collaborative communication.",
+        "Balances technical depth with business communication clarity.",
+    ]
+
+    idx = max(0, int(prior_guidance_count))
+    opening = openings[idx % len(openings)]
+    about_tone = about_tones[idx % len(about_tones)]
+
+    result["headline_suggestion"] = (
+        f"{opening} {primary_role} | {stack} | Building scalable, production-ready systems"
+    )
+
+    about = str(result.get("about_suggestion") or "").strip()
+    if about:
+        if about_tone not in about:
+            result["about_suggestion"] = f"{about} {about_tone}"
+
+    pitch = str(result.get("recruiter_pitch") or "").strip()
+    if pitch:
+        result["recruiter_pitch"] = (
+            f"{pitch} Strong fit for {primary_role} opportunities requiring {stack}."
+        )
+
+    bullets = result.get("experience_bullets_suggestion") or []
+    if isinstance(bullets, list) and bullets:
+        evolved: list[str] = []
+        for i, bullet in enumerate(bullets, start=1):
+            b = str(bullet).strip()
+            if not b:
+                continue
+            evolved.append(f"{b} (evidence variant {idx + i})")
+        result["experience_bullets_suggestion"] = evolved
+
+    result["uniqueness"] = {
+        "prior_guidance_count": idx,
+        "variation_track": idx % len(openings),
+        "anti_repetition_enabled": True,
+    }
+    return result

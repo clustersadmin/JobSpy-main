@@ -19,7 +19,11 @@ from .activity_log import ActivityLogger
 from .contracts import OUTCOME_FEEDBACK_CONTRACT, SUBMISSION_PACKET_CONTRACT
 from .models import ActivityEvent, BenchResource, JobPosting
 from .pipeline import process_resources_and_jobs
-from .profile_intelligence import assess_profile_readiness, generate_profile_guidance
+from .profile_intelligence import (
+    assess_profile_readiness,
+    enforce_guidance_uniqueness,
+    generate_profile_guidance,
+)
 
 
 class BenchResourceIn(BaseModel):
@@ -176,6 +180,8 @@ class ProfileValidationRequest(BaseModel):
 
 class ProfileGuidanceRequest(ProfileValidationRequest):
     use_llama: bool = False
+    avoid_repetition: bool = True
+    output_dir: str = "component_outputs"
 
 
 def _group_packets_by_resource(
@@ -471,6 +477,43 @@ def profile_guidance(request: ProfileGuidanceRequest) -> dict[str, Any]:
     }
     assessment = assess_profile_readiness(payload)
     guidance = generate_profile_guidance(payload, use_llama=request.use_llama)
+
+    if request.avoid_repetition:
+        out = Path(request.output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        history_path = out / "profile_guidance_history.jsonl"
+        resource_id = request.candidate.resource_id
+
+        prior_count = 0
+        if history_path.exists():
+            for line in history_path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if str(row.get("resource_id") or "") == resource_id:
+                    prior_count += 1
+
+        guidance = enforce_guidance_uniqueness(
+            guidance=guidance,
+            payload=payload,
+            prior_guidance_count=prior_count,
+        )
+
+        history_row = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "resource_id": resource_id,
+            "guidance": {
+                "headline_suggestion": guidance.get("headline_suggestion"),
+                "about_suggestion": guidance.get("about_suggestion"),
+                "recruiter_pitch": guidance.get("recruiter_pitch"),
+            },
+        }
+        with history_path.open("a", encoding="utf-8") as fp:
+            fp.write(json.dumps(history_row, ensure_ascii=False) + "\n")
+
     return {
         "assessment": assessment,
         "guidance": guidance,

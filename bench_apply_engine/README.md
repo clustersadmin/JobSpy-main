@@ -352,6 +352,12 @@ Use these endpoints to validate candidate profile strength and generate actionab
 
 Guidance supports `use_llama=true` when `LLAMA_API_URL` is configured; otherwise it falls back to deterministic rule-based guidance.
 
+Non-repetitive customization:
+
+- `POST /profiles/guidance` supports `avoid_repetition=true` (default).
+- Guidance history is tracked in `component_outputs/profile_guidance_history.jsonl`.
+- Each subsequent guidance response for the same `resource_id` is automatically varied to avoid repetitive wording while staying aligned to the same profile facts.
+
 Mandatory profile rule:
 
 - `candidate.linkedin_url` is required for candidate validation/matching/queue flows.
