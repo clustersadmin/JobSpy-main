@@ -4,7 +4,7 @@ import json
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -15,6 +15,7 @@ from .adzuna_adapter import (
     search_jobs_via_adzuna,
 )
 from .activity_log import ActivityLogger
+from .contracts import OUTCOME_FEEDBACK_CONTRACT, SUBMISSION_PACKET_CONTRACT
 from .models import ActivityEvent, BenchResource, JobPosting
 from .pipeline import process_resources_and_jobs
 
@@ -112,6 +113,28 @@ class AdzunaSearchAndMatchRequest(BaseModel):
     threshold: float = 70.0
     near_match_min_score: float = 0.0
     compact_response: bool = False
+
+
+class OutcomeFeedbackIn(BaseModel):
+    application_id: str
+    resource_id: str
+    job_id: str
+    portal: str
+    outcome_stage: Literal[
+        "applied",
+        "viewed",
+        "contacted",
+        "screen_scheduled",
+        "interview_scheduled",
+        "rejected",
+        "offer",
+        "hired",
+    ]
+    outcome_status: Literal["positive", "neutral", "negative", "unknown"] = "unknown"
+    reason_code: str | None = None
+    notes: str | None = None
+    created_at: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 def _group_packets_by_resource(
@@ -334,6 +357,16 @@ app = FastAPI(
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/contracts/submission-packet")
+def submission_packet_contract() -> dict[str, Any]:
+    return SUBMISSION_PACKET_CONTRACT
+
+
+@app.get("/contracts/outcome-feedback")
+def outcome_feedback_contract() -> dict[str, Any]:
+    return OUTCOME_FEEDBACK_CONTRACT
 
 
 @app.get("/adzuna/credentials-status")
@@ -827,4 +860,27 @@ async def extension_task_queue_from_files(
         "queue_file": str(queue_path),
         "events_file": str(logger.events_file),
         "queue": queue,
+    }
+
+
+@app.post("/outcomes/feedback")
+def outcomes_feedback(feedback: OutcomeFeedbackIn, output_dir: str = "component_outputs") -> dict[str, Any]:
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    payload = feedback.model_dump()
+    if not payload.get("created_at"):
+        payload["created_at"] = datetime.now(timezone.utc).isoformat()
+
+    history_path = out / "outcome_feedback.jsonl"
+    with history_path.open("a", encoding="utf-8") as fp:
+        fp.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+    return {
+        "status": "accepted",
+        "file": str(history_path),
+        "application_id": payload.get("application_id"),
+        "resource_id": payload.get("resource_id"),
+        "job_id": payload.get("job_id"),
+        "outcome_stage": payload.get("outcome_stage"),
     }

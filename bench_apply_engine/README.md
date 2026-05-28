@@ -54,6 +54,8 @@ Base URL: `http://localhost:8011`
 Endpoints:
 
 - `GET /health`
+- `GET /contracts/submission-packet`
+- `GET /contracts/outcome-feedback`
 - `GET /adzuna/credentials-status`
 - `POST /adzuna/search-jobs`
 - `POST /candidate-match-from-jd`
@@ -67,6 +69,7 @@ Endpoints:
 - `GET /extension-adapter/{portal}` (adapter contract, e.g. linkedin/indeed)
 - `POST /extension-task-queue` (build extension execution queue from grouped packets)
 - `POST /extension-task-queue-from-files` (one-shot: upload resources + jobs CSV and return queue)
+- `POST /outcomes/feedback` (record applied/viewed/contacted/interview/rejected/offer/hired for learning loop)
 
 Example request payload (for `match-jobs` or `prepare-apply-packets`):
 
@@ -307,3 +310,33 @@ Compact request example:
 ```
 
 If Adzuna keys are not set, JD-to-candidate matching still works via `/candidate-match-from-jd` without any external API call.
+
+### Submission and Outcome Contracts
+
+Use these endpoints to drive production-safe integration:
+
+- `GET /contracts/submission-packet`
+- `GET /contracts/outcome-feedback`
+
+Outcome feedback example:
+
+```json
+{
+	"application_id": "app-2026-05-27-0001",
+	"resource_id": "bench-001",
+	"job_id": "5742436648",
+	"portal": "adzuna",
+	"outcome_stage": "interview_scheduled",
+	"outcome_status": "positive",
+	"reason_code": null,
+	"notes": "Recruiter scheduled 30-min technical screening",
+	"metadata": {
+		"company": "Confidential Client",
+		"recruiter_channel": "email"
+	}
+}
+```
+
+Feedback rows are appended to:
+
+- `component_outputs/outcome_feedback.jsonl`
