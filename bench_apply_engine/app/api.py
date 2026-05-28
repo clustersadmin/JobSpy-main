@@ -76,6 +76,11 @@ class ExtensionTaskQueueRequest(BaseModel):
     max_tasks_per_resource: int = 10
     cooldown_seconds: int = 120
     require_user_confirmation: bool = True
+    output_dir: str = "component_outputs"
+    enforce_monthly_uniques: bool = True
+    monthly_unique_target: int = 280
+    monthly_target_min: int = 250
+    monthly_target_max: int = 300
 
 
 class AdzunaSearchRequest(BaseModel):
@@ -154,12 +159,79 @@ def _parse_resources_json(resources_json: str) -> list[BenchResource]:
     return parsed
 
 
+def _job_key(job_id: Any, portal: Any) -> str:
+    return f"{str(portal or '').strip().lower()}::{str(job_id or '').strip()}"
+
+
+def _current_month_key() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def _load_monthly_task_history(output_dir: Path, month_key: str) -> dict[str, set[str]]:
+    history_path = output_dir / "extension_task_history.jsonl"
+    if not history_path.exists():
+        return {}
+
+    seen: dict[str, set[str]] = {}
+    for line in history_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        created = str(row.get("created_at") or "")
+        if not created.startswith(month_key):
+            continue
+
+        rid = str(row.get("resource_id") or "").strip()
+        if not rid:
+            continue
+
+        key = _job_key(row.get("job_id"), row.get("portal"))
+        if key == "::":
+            continue
+
+        seen.setdefault(rid, set()).add(key)
+
+    return seen
+
+
+def _append_task_history(output_dir: Path, queue: dict[str, Any]) -> None:
+    history_path = output_dir / "extension_task_history.jsonl"
+    now = datetime.now(timezone.utc).isoformat()
+    lines: list[str] = []
+
+    for task in queue.get("tasks", []):
+        row = {
+            "created_at": now,
+            "resource_id": task.get("resource_id"),
+            "job_id": task.get("job_id"),
+            "portal": task.get("portal"),
+            "title": task.get("title"),
+            "match_score": task.get("match_score"),
+        }
+        lines.append(json.dumps(row, ensure_ascii=False))
+
+    if not lines:
+        return
+
+    with history_path.open("a", encoding="utf-8") as fp:
+        fp.write("\n".join(lines) + "\n")
+
+
 def _build_task_queue(
     grouped_packets: dict[str, Any],
     resource_id: str | None,
     max_tasks_per_resource: int,
     cooldown_seconds: int,
     require_user_confirmation: bool,
+    enforce_monthly_uniques: bool,
+    monthly_unique_target: int,
+    monthly_target_min: int,
+    monthly_target_max: int,
+    existing_monthly_history: dict[str, set[str]] | None = None,
 ) -> dict[str, Any]:
     resources_obj = grouped_packets.get("resources")
     if not isinstance(resources_obj, dict):
@@ -167,15 +239,34 @@ def _build_task_queue(
 
     selected_ids = [resource_id] if resource_id else list(resources_obj.keys())
     queue: list[dict[str, Any]] = []
+    per_resource_summary: dict[str, dict[str, int]] = {}
     sequence = 0
+    monthly_target = max(0, int(monthly_unique_target))
+    target_min = max(0, int(monthly_target_min))
+    target_max = max(target_min, int(monthly_target_max))
 
     for rid in selected_ids:
         packets = resources_obj.get(rid, [])
         if not isinstance(packets, list):
             continue
 
-        capped = packets[: max(0, int(max_tasks_per_resource))]
-        for idx, packet in enumerate(capped):
+        seen_keys = set((existing_monthly_history or {}).get(rid, set()))
+        monthly_remaining = monthly_target - len(seen_keys) if enforce_monthly_uniques else max(0, int(max_tasks_per_resource))
+        cap_today = min(max(0, int(max_tasks_per_resource)), max(0, monthly_remaining))
+
+        selected_packets: list[dict[str, Any]] = []
+        for packet in packets:
+            if len(selected_packets) >= cap_today:
+                break
+
+            key = _job_key(packet.get("job_id"), packet.get("portal"))
+            if enforce_monthly_uniques and key in seen_keys:
+                continue
+
+            selected_packets.append(packet)
+            seen_keys.add(key)
+
+        for idx, packet in enumerate(selected_packets):
             sequence += 1
             queue.append(
                 {
@@ -205,12 +296,29 @@ def _build_task_queue(
                 }
             )
 
+        already = len((existing_monthly_history or {}).get(rid, set()))
+        newly = len(selected_packets)
+        per_resource_summary[rid] = {
+            "already_scheduled_this_month": already,
+            "queued_this_run": newly,
+            "scheduled_after_run": already + newly,
+            "remaining_to_monthly_target": max(0, monthly_target - (already + newly)),
+        }
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "resource_id": resource_id,
         "max_tasks_per_resource": int(max(0, max_tasks_per_resource)),
         "cooldown_seconds": int(max(0, cooldown_seconds)),
         "require_user_confirmation": bool(require_user_confirmation),
+        "monthly_policy": {
+            "enforce_monthly_uniques": bool(enforce_monthly_uniques),
+            "monthly_unique_target": monthly_target,
+            "monthly_target_min": target_min,
+            "monthly_target_max": target_max,
+            "month": _current_month_key(),
+        },
+        "resource_summary": per_resource_summary,
         "total_tasks": len(queue),
         "tasks": queue,
     }
@@ -622,13 +730,26 @@ def extension_adapter_contract(portal: str) -> dict[str, Any]:
 
 @app.post("/extension-task-queue")
 def extension_task_queue(request: ExtensionTaskQueueRequest) -> dict[str, Any]:
-    return _build_task_queue(
+    out = Path(request.output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    month_key = _current_month_key()
+    existing_history = _load_monthly_task_history(output_dir=out, month_key=month_key)
+
+    queue = _build_task_queue(
         grouped_packets=request.grouped_packets,
         resource_id=request.resource_id,
         max_tasks_per_resource=request.max_tasks_per_resource,
         cooldown_seconds=request.cooldown_seconds,
         require_user_confirmation=request.require_user_confirmation,
+        enforce_monthly_uniques=request.enforce_monthly_uniques,
+        monthly_unique_target=request.monthly_unique_target,
+        monthly_target_min=request.monthly_target_min,
+        monthly_target_max=request.monthly_target_max,
+        existing_monthly_history=existing_history,
     )
+
+    _append_task_history(output_dir=out, queue=queue)
+    return queue
 
 
 @app.post("/extension-task-queue-from-files")
@@ -641,6 +762,10 @@ async def extension_task_queue_from_files(
     max_tasks_per_resource: int = Form(10),
     cooldown_seconds: int = Form(120),
     require_user_confirmation: bool = Form(True),
+    enforce_monthly_uniques: bool = Form(True),
+    monthly_unique_target: int = Form(280),
+    monthly_target_min: int = Form(250),
+    monthly_target_max: int = Form(300),
 ) -> dict[str, Any]:
     resources = _parse_resources_json(resources_json)
 
@@ -663,16 +788,23 @@ async def extension_task_queue_from_files(
     packets, events, match_rows = process_resources_and_jobs(resources=resources, jobs=jobs, threshold=threshold)
     grouped = _group_packets_by_resource(packets=packets, match_rows=match_rows)
 
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    month_key = _current_month_key()
+    existing_history = _load_monthly_task_history(output_dir=out, month_key=month_key)
+
     queue = _build_task_queue(
         grouped_packets=grouped,
         resource_id=resource_id,
         max_tasks_per_resource=max_tasks_per_resource,
         cooldown_seconds=cooldown_seconds,
         require_user_confirmation=require_user_confirmation,
+        enforce_monthly_uniques=enforce_monthly_uniques,
+        monthly_unique_target=monthly_unique_target,
+        monthly_target_min=monthly_target_min,
+        monthly_target_max=monthly_target_max,
+        existing_monthly_history=existing_history,
     )
-
-    out = Path(output_dir)
-    out.mkdir(parents=True, exist_ok=True)
     logger = ActivityLogger(output_dir=out)
 
     for event in events:
@@ -683,6 +815,7 @@ async def extension_task_queue_from_files(
 
     queue_path = out / "extension_task_queue.json"
     queue_path.write_text(json.dumps(queue, indent=2, ensure_ascii=False), encoding="utf-8")
+    _append_task_history(output_dir=out, queue=queue)
 
     return {
         "threshold": threshold,

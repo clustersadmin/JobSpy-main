@@ -133,15 +133,24 @@ Extension task queue:
 
 - Use `POST /extension-task-queue` with `grouped_packets` from `prepare-apply-packets-grouped`
 - Supports `resource_id`, `max_tasks_per_resource`, and `cooldown_seconds`
+- Daily target support: set `max_tasks_per_resource=10` for 10 applications per candidate per run/day
+- Monthly unique target support:
+	- `enforce_monthly_uniques` (default `true`)
+	- `monthly_unique_target` (default `280`)
+	- `monthly_target_min` (default `250`)
+	- `monthly_target_max` (default `300`)
+- Queue history is tracked in `component_outputs/extension_task_history.jsonl` to avoid re-queuing the same job in the same month
 - Returns ordered task list for browser extension execution with user-confirm submit policy
 
 One-shot queue from files:
 
 - Use `POST /extension-task-queue-from-files` with `resources_json` and `jobs_csv`
 - Endpoint internally performs matching, packet preparation, grouping, and queue generation
+- Supports the same daily/monthly policy fields (`max_tasks_per_resource`, `enforce_monthly_uniques`, `monthly_unique_target`, etc.)
 - Writes:
 	- `apply_packets_grouped.json`
 	- `extension_task_queue.json`
+	- `extension_task_history.jsonl`
 	- `application_events.jsonl`
 
 Example multipart call:
