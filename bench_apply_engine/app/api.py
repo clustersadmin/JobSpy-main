@@ -18,6 +18,7 @@ from .activity_log import ActivityLogger
 from .contracts import OUTCOME_FEEDBACK_CONTRACT, SUBMISSION_PACKET_CONTRACT
 from .models import ActivityEvent, BenchResource, JobPosting
 from .pipeline import process_resources_and_jobs
+from .profile_intelligence import assess_profile_readiness, generate_profile_guidance
 
 
 class BenchResourceIn(BaseModel):
@@ -135,6 +136,43 @@ class OutcomeFeedbackIn(BaseModel):
     notes: str | None = None
     created_at: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class LinkedInProfileIn(BaseModel):
+    url: str | None = None
+    headline: str = ""
+    about: str = ""
+    skills: list[str] = Field(default_factory=list)
+    experience_bullets: list[str] = Field(default_factory=list)
+    open_to_work: bool | None = None
+
+
+class GitHubRepoIn(BaseModel):
+    name: str
+    description: str = ""
+    tech_stack: list[str] = Field(default_factory=list)
+    stars: int = 0
+    has_readme: bool = False
+    has_tests: bool = False
+    updated_at: str | None = None
+
+
+class GitHubProfileIn(BaseModel):
+    url: str | None = None
+    username: str | None = None
+    activity_last_90_days_commits: int = 0
+    pinned_repo_names: list[str] = Field(default_factory=list)
+    repos: list[GitHubRepoIn] = Field(default_factory=list)
+
+
+class ProfileValidationRequest(BaseModel):
+    candidate: BenchResourceIn
+    linkedin: LinkedInProfileIn = Field(default_factory=LinkedInProfileIn)
+    github: GitHubProfileIn = Field(default_factory=GitHubProfileIn)
+
+
+class ProfileGuidanceRequest(ProfileValidationRequest):
+    use_llama: bool = False
 
 
 def _group_packets_by_resource(
@@ -367,6 +405,31 @@ def submission_packet_contract() -> dict[str, Any]:
 @app.get("/contracts/outcome-feedback")
 def outcome_feedback_contract() -> dict[str, Any]:
     return OUTCOME_FEEDBACK_CONTRACT
+
+
+@app.post("/profiles/validate")
+def profile_validate(request: ProfileValidationRequest) -> dict[str, Any]:
+    payload = {
+        "candidate": request.candidate.model_dump(),
+        "linkedin": request.linkedin.model_dump(),
+        "github": request.github.model_dump(),
+    }
+    return assess_profile_readiness(payload)
+
+
+@app.post("/profiles/guidance")
+def profile_guidance(request: ProfileGuidanceRequest) -> dict[str, Any]:
+    payload = {
+        "candidate": request.candidate.model_dump(),
+        "linkedin": request.linkedin.model_dump(),
+        "github": request.github.model_dump(),
+    }
+    assessment = assess_profile_readiness(payload)
+    guidance = generate_profile_guidance(payload, use_llama=request.use_llama)
+    return {
+        "assessment": assessment,
+        "guidance": guidance,
+    }
 
 
 @app.get("/adzuna/credentials-status")

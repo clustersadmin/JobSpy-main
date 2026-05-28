@@ -56,6 +56,8 @@ Endpoints:
 - `GET /health`
 - `GET /contracts/submission-packet`
 - `GET /contracts/outcome-feedback`
+- `POST /profiles/validate`
+- `POST /profiles/guidance`
 - `GET /adzuna/credentials-status`
 - `POST /adzuna/search-jobs`
 - `POST /candidate-match-from-jd`
@@ -340,3 +342,55 @@ Outcome feedback example:
 Feedback rows are appended to:
 
 - `component_outputs/outcome_feedback.jsonl`
+
+### LinkedIn and GitHub Interview Readiness
+
+Use these endpoints to validate candidate profile strength and generate actionable optimization guidance:
+
+- `POST /profiles/validate`
+- `POST /profiles/guidance`
+
+Guidance supports `use_llama=true` when `LLAMA_API_URL` is configured; otherwise it falls back to deterministic rule-based guidance.
+
+Example request:
+
+```json
+{
+	"candidate": {
+		"resource_id": "bench-001",
+		"full_name": "Candidate One",
+		"target_roles": ["Senior Java Developer", "Java Software Engineer"],
+		"position_types": ["Contract", "Full-time"],
+		"preferred_locations": ["Florida", "Remote"],
+		"work_authorization": "H1B Transfer",
+		"expected_rate": "$65/hr",
+		"verified_skills": ["Java", "Spring Boot", "Microservices", "AWS", "SQL", "REST API", "Kafka"],
+		"base_resume_text": "Senior Java Developer with 8+ years of experience..."
+	},
+	"linkedin": {
+		"url": "https://www.linkedin.com/in/example",
+		"headline": "Senior Java Developer",
+		"about": "Java backend engineer focused on APIs and cloud systems.",
+		"skills": ["Java", "Spring Boot", "AWS", "SQL"],
+		"experience_bullets": ["Built REST APIs", "Optimized production performance"]
+	},
+	"github": {
+		"url": "https://github.com/example",
+		"username": "example",
+		"activity_last_90_days_commits": 22,
+		"pinned_repo_names": ["microservices-lab", "aws-api-service"],
+		"repos": [
+			{
+				"name": "microservices-lab",
+				"description": "Spring Boot microservices project",
+				"tech_stack": ["Java", "Spring Boot", "Kafka"],
+				"stars": 4,
+				"has_readme": true,
+				"has_tests": true,
+				"updated_at": "2026-05-20T00:00:00Z"
+			}
+		]
+	},
+	"use_llama": false
+}
+```
