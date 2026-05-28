@@ -9,11 +9,13 @@ from typing import Any
 class BenchResource:
     resource_id: str
     full_name: str
+    linkedin_url: str
     target_roles: list[str]
     position_types: list[str]
     preferred_locations: list[str]
     work_authorization: str
     expected_rate: str | None = None
+    github_url: str | None = None
     verified_skills: list[str] = field(default_factory=list)
     base_resume_text: str = ""
 

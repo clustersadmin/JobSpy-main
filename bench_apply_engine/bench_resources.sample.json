@@ -2,6 +2,8 @@
   {
     "resource_id": "bench-001",
     "full_name": "Candidate One",
+    "linkedin_url": "https://www.linkedin.com/in/candidate-one",
+    "github_url": "",
     "target_roles": ["Senior Java Developer", "Java Software Engineer"],
     "position_types": ["Contract", "Full-time"],
     "preferred_locations": ["Florida", "Remote"],

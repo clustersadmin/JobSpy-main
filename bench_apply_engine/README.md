@@ -352,6 +352,24 @@ Use these endpoints to validate candidate profile strength and generate actionab
 
 Guidance supports `use_llama=true` when `LLAMA_API_URL` is configured; otherwise it falls back to deterministic rule-based guidance.
 
+Mandatory profile rule:
+
+- `candidate.linkedin_url` is required for candidate validation/matching/queue flows.
+- Accepted format is a public LinkedIn profile URL (`https://www.linkedin.com/in/...` or `https://www.linkedin.com/pub/...`).
+
+LinkedIn access note:
+
+- This component validates URL format and evaluates profile content supplied in payload.
+- It does not rely on authenticated/private LinkedIn scraping.
+- If profile data is private or not provided, only structural validation and candidate-provided content checks are performed.
+
+GitHub bootstrap note:
+
+- If GitHub URL/repositories are missing, `/profiles/guidance` returns:
+	- account setup steps,
+	- role-aligned project skeletons,
+	- a coaching prompt for structured weekly execution.
+
 Example request:
 
 ```json

@@ -5,6 +5,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -24,6 +25,8 @@ from .profile_intelligence import assess_profile_readiness, generate_profile_gui
 class BenchResourceIn(BaseModel):
     resource_id: str
     full_name: str
+    linkedin_url: str
+    github_url: str | None = None
     target_roles: list[str]
     position_types: list[str]
     preferred_locations: list[str]
@@ -220,6 +223,46 @@ def _parse_resources_json(resources_json: str) -> list[BenchResource]:
     return parsed
 
 
+def _is_valid_linkedin_profile_url(url: str) -> bool:
+    value = (url or "").strip()
+    if not value:
+        return False
+    try:
+        parsed = urlparse(value)
+    except Exception:
+        return False
+
+    if parsed.scheme not in {"http", "https"}:
+        return False
+
+    host = (parsed.netloc or "").lower()
+    if "linkedin.com" not in host:
+        return False
+
+    path = (parsed.path or "").strip().lower()
+    if not path:
+        return False
+
+    return path.startswith("/in/") or path.startswith("/pub/")
+
+
+def _ensure_linkedin_urls(resources: list[BenchResource]) -> None:
+    bad: list[str] = []
+    for r in resources:
+        if not _is_valid_linkedin_profile_url(r.linkedin_url):
+            bad.append(r.resource_id)
+
+    if bad:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "LinkedIn profile URL is required and must be a valid public profile link "
+                "(for example, https://www.linkedin.com/in/<profile>). "
+                f"Invalid resource_id values: {', '.join(bad)}"
+            ),
+        )
+
+
 def _job_key(job_id: Any, portal: Any) -> str:
     return f"{str(portal or '').strip().lower()}::{str(job_id or '').strip()}"
 
@@ -409,6 +452,7 @@ def outcome_feedback_contract() -> dict[str, Any]:
 
 @app.post("/profiles/validate")
 def profile_validate(request: ProfileValidationRequest) -> dict[str, Any]:
+    _ensure_linkedin_urls([BenchResource(**request.candidate.model_dump())])
     payload = {
         "candidate": request.candidate.model_dump(),
         "linkedin": request.linkedin.model_dump(),
@@ -419,6 +463,7 @@ def profile_validate(request: ProfileValidationRequest) -> dict[str, Any]:
 
 @app.post("/profiles/guidance")
 def profile_guidance(request: ProfileGuidanceRequest) -> dict[str, Any]:
+    _ensure_linkedin_urls([BenchResource(**request.candidate.model_dump())])
     payload = {
         "candidate": request.candidate.model_dump(),
         "linkedin": request.linkedin.model_dump(),
@@ -474,6 +519,7 @@ def adzuna_search_jobs(request: AdzunaSearchRequest) -> dict[str, Any]:
 @app.post("/candidate-match-from-jd")
 def candidate_match_from_jd(request: CandidateMatchFromJDRequest) -> dict[str, Any]:
     resources = [BenchResource(**item.model_dump()) for item in request.resources]
+    _ensure_linkedin_urls(resources)
     ranked = match_resources_to_job_description(
         resources=resources,
         title=request.title,
@@ -492,6 +538,7 @@ def candidate_match_from_jd(request: CandidateMatchFromJDRequest) -> dict[str, A
 @app.post("/adzuna/search-and-match")
 def adzuna_search_and_match(request: AdzunaSearchAndMatchRequest) -> dict[str, Any]:
     resources = [BenchResource(**item.model_dump()) for item in request.resources]
+    _ensure_linkedin_urls(resources)
 
     try:
         jobs, meta = search_jobs_via_adzuna(
@@ -604,6 +651,7 @@ def adzuna_search_and_match(request: AdzunaSearchAndMatchRequest) -> dict[str, A
 @app.post("/match-jobs")
 def match_jobs(request: MatchJobsRequest) -> dict[str, Any]:
     resources = [BenchResource(**item.model_dump()) for item in request.resources]
+    _ensure_linkedin_urls(resources)
     jobs = [JobPosting(**item.model_dump()) for item in request.jobs]
 
     _, _, match_rows = process_resources_and_jobs(resources=resources, jobs=jobs, threshold=request.threshold)
@@ -619,6 +667,7 @@ def match_jobs(request: MatchJobsRequest) -> dict[str, Any]:
 @app.post("/prepare-apply-packets")
 def prepare_apply_packets(request: PreparePacketsRequest) -> dict[str, Any]:
     resources = [BenchResource(**item.model_dump()) for item in request.resources]
+    _ensure_linkedin_urls(resources)
     jobs = [JobPosting(**item.model_dump()) for item in request.jobs]
 
     packets, events, match_rows = process_resources_and_jobs(resources=resources, jobs=jobs, threshold=request.threshold)
@@ -648,6 +697,7 @@ def prepare_apply_packets(request: PreparePacketsRequest) -> dict[str, Any]:
 @app.post("/prepare-apply-packets-grouped")
 def prepare_apply_packets_grouped(request: PreparePacketsRequest) -> dict[str, Any]:
     resources = [BenchResource(**item.model_dump()) for item in request.resources]
+    _ensure_linkedin_urls(resources)
     jobs = [JobPosting(**item.model_dump()) for item in request.jobs]
 
     packets, events, match_rows = process_resources_and_jobs(resources=resources, jobs=jobs, threshold=request.threshold)
@@ -707,6 +757,7 @@ async def prepare_apply_packets_from_files(
     output_dir: str = Form("component_outputs"),
 ) -> dict[str, Any]:
     resources = _parse_resources_json(resources_json)
+    _ensure_linkedin_urls(resources)
 
     suffix = Path(jobs_csv.filename or "jobs.csv").suffix or ".csv"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -864,6 +915,7 @@ async def extension_task_queue_from_files(
     monthly_target_max: int = Form(300),
 ) -> dict[str, Any]:
     resources = _parse_resources_json(resources_json)
+    _ensure_linkedin_urls(resources)
 
     suffix = Path(jobs_csv.filename or "jobs.csv").suffix or ".csv"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:

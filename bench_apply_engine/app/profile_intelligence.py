@@ -209,11 +209,96 @@ def _generate_rule_based_guidance(payload: dict[str, Any]) -> dict[str, Any]:
         },
     ]
 
+    github_bootstrap: dict[str, Any] = {
+        "needs_github_account": False,
+        "steps": [],
+        "project_skeletons": [],
+    }
+
+    github = payload.get("github") or {}
+    github_url = _safe_text(github.get("url"))
+    github_repos = _safe_list(github.get("repos"))
+
+    if not github_url or not github_repos:
+        role_tag = primary_role.lower()
+        is_java = "java" in role_tag or any("java" in s.lower() for s in skills)
+
+        skeletons: list[dict[str, Any]] = []
+        if is_java:
+            skeletons.append(
+                {
+                    "name": "candidate-api-service",
+                    "goal": "Show production-grade API design and clean architecture.",
+                    "stack": ["Java", "Spring Boot", "SQL", "Docker", "JUnit"],
+                    "milestones": [
+                        "Create REST endpoints with validation and error handling",
+                        "Add SQL persistence and migration scripts",
+                        "Add test coverage for service and controller layers",
+                        "Document architecture and local run steps in README",
+                    ],
+                }
+            )
+            skeletons.append(
+                {
+                    "name": "event-driven-order-flow",
+                    "goal": "Demonstrate Kafka/event-driven system thinking.",
+                    "stack": ["Java", "Spring Boot", "Kafka", "Redis", "Docker Compose"],
+                    "milestones": [
+                        "Implement producer and consumer services",
+                        "Handle retries and dead-letter behavior",
+                        "Expose monitoring/health endpoints",
+                        "Add sequence diagrams and failure scenarios in README",
+                    ],
+                }
+            )
+        else:
+            skeletons.append(
+                {
+                    "name": "portfolio-solution-kit",
+                    "goal": "Show role-relevant problem solving and clean implementation.",
+                    "stack": ["Language of choice", "Tests", "CI"],
+                    "milestones": [
+                        "Implement one end-to-end feature",
+                        "Add tests and clear setup docs",
+                        "Add architecture notes and trade-offs",
+                    ],
+                }
+            )
+
+        skeletons.append(
+            {
+                "name": "system-design-notes",
+                "goal": "Show logical thinking and architecture communication.",
+                "stack": ["Markdown", "Diagrams"],
+                "milestones": [
+                    "Document 3 real-world system design cases",
+                    "Add scale, reliability, and cost trade-off discussion",
+                    "Include API contracts and data model examples",
+                ],
+            }
+        )
+
+        github_bootstrap = {
+            "needs_github_account": True,
+            "steps": [
+                "Create GitHub account and enable 2FA.",
+                "Create profile README with role, skills, and contact.",
+                "Create and push at least 2 role-aligned repositories in first week.",
+                "Pin strongest repositories and keep weekly commit activity.",
+            ],
+            "project_skeletons": skeletons,
+            "coach_prompt": (
+                "Create a 14-day execution plan for the listed project skeletons. "
+                "Use only verified candidate skills and avoid fabricated claims."
+            ),
+        }
+
     return {
         "headline_suggestion": headline,
         "about_suggestion": " ".join(about_lines),
         "experience_bullets_suggestion": rewritten_bullets,
         "github_readme_templates": github_readme_templates,
+        "github_bootstrap": github_bootstrap,
         "recruiter_pitch": f"{primary_role} with strong experience in {stack}, ready to contribute quickly in production environments.",
     }
 
